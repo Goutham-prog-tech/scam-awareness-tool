@@ -7,12 +7,16 @@
 <style>
   :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --warn:#f59e0b; --ok:#22c55e; --bad:#ef4444; }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  body { margin:0; font-family: system-ui, "Nirmala UI", "Noto Sans Telugu", sans-serif; background:var(--bg); color:var(--text); }
   .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
   h1 { font-size: 1.6rem; margin: 0 0 4px; }
   p.sub { color: var(--muted); margin: 0 0 20px; }
-  textarea { width:100%; min-height:130px; padding:12px; border-radius:10px; border:1px solid #334155; background:var(--card); color:var(--text); font-size:1rem; resize:vertical; }
-  button { margin-top:12px; padding:10px 20px; border:0; border-radius:8px; background:#3b82f6; color:#fff; font-size:1rem; cursor:pointer; }
+  .lang { display:flex; gap:6px; }
+  .lang button { margin:0; padding:6px 12px; background:#334155; font-size:.9rem; }
+  .lang button.active { background:#3b82f6; }
+  textarea { width:100%; min-height:130px; padding:12px; border-radius:10px; border:1px solid #334155; background:var(--card); color:var(--text); font-size:1rem; resize:vertical; font-family:inherit; }
+  button { margin-top:12px; padding:10px 20px; border:0; border-radius:8px; background:#3b82f6; color:#fff; font-size:1rem; cursor:pointer; font-family:inherit; }
   button:hover { background:#2563eb; }
   .card { background:var(--card); border-radius:12px; padding:16px; margin-top:20px; }
   .level { font-size:1.15rem; font-weight:600; }
@@ -24,30 +28,60 @@
   .yes { color:var(--warn); font-weight:600; white-space:nowrap; }
   ul { padding-left:20px; margin:8px 0 0; }
   .disc { color:var(--muted); font-size:.8rem; margin-top:16px; }
-  .hidden { display:none; }
+  .privacy { color:var(--muted); font-size:.8rem; margin-top:8px; }
+  .hidden { display:none !important; }
+  .overlay { position:fixed; inset:0; background:rgba(15,23,42,.96); display:flex; align-items:center; justify-content:center; z-index:10; padding:16px; }
+  .modal { background:var(--card); border-radius:14px; padding:28px 24px; max-width:420px; width:100%; text-align:center; }
+  .modal h2 { margin:0 0 6px; font-size:1.3rem; }
+  .modal p { color:var(--muted); margin:0 0 18px; }
+  .modal button { display:block; width:100%; margin:10px 0 0; font-size:1.1rem; padding:12px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🤖 AI Scam Awareness Tool</h1>
-  <p class="sub">Paste a suspicious message to see which common scam indicators it contains.</p>
 
-  <textarea id="msg" placeholder="Paste the message here..."></textarea>
-  <button onclick="run()">Analyze message</button>
+<div id="chooser" class="overlay hidden">
+  <div class="modal">
+    <h2>Choose your language</h2>
+    <h2>మీ భాషను ఎంచుకోండి</h2>
+    <p>You can change this anytime.<br>మీరు దీన్ని ఎప్పుడైనా మార్చుకోవచ్చు.</p>
+    <button onclick="setLang('en')">English</button>
+    <button onclick="setLang('te')">తెలుగు</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1 id="title"></h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <div class="lang">
+      <button id="changeLang" onclick="showChooser()"></button>
+    </div>
+  </div>
+
+  <textarea id="msg" maxlength="2000"></textarea>
+  <div class="privacy" id="hint" style="margin:6px 0 0"></div>
+  <button id="analyzeBtn" onclick="run()"></button>
+  <div class="privacy" id="privacy"></div>
 
   <div id="out" class="hidden">
     <div class="card">
       <div class="level" id="level"></div>
       <div class="bar"><div id="fill"></div></div>
       <div class="why" id="scores"></div>
+      <div class="why" id="detected" style="margin-top:4px"></div>
       <p id="explain"></p>
     </div>
+    <div class="card hidden" id="noteCard" style="border-left:4px solid var(--warn)">
+      <span id="noteText"></span>
+    </div>
     <div class="card">
-      <b>⚠️ Indicators found</b>
+      <b id="foundTitle"></b>
       <div id="found"></div>
     </div>
     <div class="card">
-      <b>✅ Recommended action</b>
+      <b id="actionTitle"></b>
       <ul id="actions"></ul>
     </div>
     <p class="disc" id="disc"></p>
@@ -55,12 +89,70 @@
 </div>
 
 <script>
+const UI = {
+  en: {
+    title: "🤖 AI Scam Awareness Tool",
+    sub: "Paste a suspicious message (SMS, WhatsApp, email) to see which common scam indicators it contains.",
+    placeholder: "Paste the message here...",
+    button: "Analyze message",
+    hint: "You can paste messages in English, Telugu, Hindi or other Indian languages.",
+    detectedLabel: "Detected language",
+    changeLang: "🌐 Language: English (change)",
+    privacy: "Do not paste real OTPs, passwords or personal details here.",
+    foundTitle: "⚠️ Indicators found",
+    actionTitle: "✅ Recommended action",
+    none: "None detected.",
+    score: "Indicator score",
+    ml: "ML similarity to known scam examples"
+  },
+  te: {
+    title: "🤖 AI మోసం అవగాహన సాధనం",
+    sub: "అనుమానాస్పద సందేశాన్ని (SMS, WhatsApp, ఇమెయిల్) ఇక్కడ పేస్ట్ చేయండి. అందులో ఏ సాధారణ మోసం సూచికలు ఉన్నాయో చూడండి.",
+    placeholder: "సందేశాన్ని ఇక్కడ పేస్ట్ చేయండి...",
+    button: "సందేశాన్ని విశ్లేషించండి",
+    hint: "మీరు ఇంగ్లీష్, తెలుగు, హిందీ లేదా ఇతర భారతీయ భాషల్లో సందేశాలను పేస్ట్ చేయవచ్చు.",
+    detectedLabel: "గుర్తించిన భాష",
+    changeLang: "🌐 భాష: తెలుగు (మార్చండి)",
+    privacy: "నిజమైన OTP, పాస్‌వర్డ్ లేదా వ్యక్తిగత వివరాలను ఇక్కడ పేస్ట్ చేయవద్దు.",
+    foundTitle: "⚠️ గుర్తించిన సూచికలు",
+    actionTitle: "✅ సిఫార్సు చేసిన చర్య",
+    none: "ఏవీ గుర్తించబడలేదు.",
+    score: "సూచిక స్కోర్",
+    ml: "తెలిసిన మోసం ఉదాహరణలతో ML పోలిక"
+  }
+};
+
+let lang = "en";
+
+function applyLang() {
+  const u = UI[lang];
+  document.documentElement.lang = lang;
+  document.getElementById("title").textContent = u.title;
+  document.getElementById("sub").textContent = u.sub;
+  document.getElementById("msg").placeholder = u.placeholder;
+  document.getElementById("analyzeBtn").textContent = u.button;
+  document.getElementById("privacy").textContent = u.privacy;
+  document.getElementById("hint").textContent = u.hint;
+  document.getElementById("foundTitle").textContent = u.foundTitle;
+  document.getElementById("actionTitle").textContent = u.actionTitle;
+  document.getElementById("changeLang").textContent = u.changeLang;
+}
+
+function setLang(l) {
+  lang = l;
+  document.getElementById("chooser").classList.add("hidden");
+  applyLang();
+  // re-translate an existing result
+  if (!document.getElementById("out").classList.contains("hidden")) run();
+}
+
 async function run() {
   const message = document.getElementById("msg").value;
+  const u = UI[lang];
   const res = await fetch("/api/analyze", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({message})
+    body: JSON.stringify({message, lang})
   });
   const d = await res.json();
   document.getElementById("out").classList.remove("hidden");
@@ -69,14 +161,26 @@ async function run() {
   fill.style.width = d.score + "%";
   fill.style.background = d.score >= 60 ? "var(--bad)" : d.score >= 35 ? "var(--warn)" : "var(--ok)";
   document.getElementById("scores").textContent =
-    "Indicator score: " + d.score + "/100" + (d.ml_score !== null ? "  |  ML similarity to known scam examples: " + d.ml_score + "%" : "");
+    u.score + ": " + d.score + "/100" + (d.ml_score !== null ? "  |  " + u.ml + ": " + d.ml_score + "%" : "");
   document.getElementById("explain").textContent = d.explanation;
+  document.getElementById("detected").textContent = d.detected_languages ? u.detectedLabel + ": " + d.detected_languages : "";
+  const note = document.getElementById("noteCard");
+  document.getElementById("noteText").textContent = d.language_note || "";
+  note.classList.toggle("hidden", !d.language_note);
   document.getElementById("found").innerHTML = d.indicators_found.length
     ? d.indicators_found.map(i => `<div class="row"><div>${i.label}<div class="why">${i.why}</div></div><span class="yes">✓</span></div>`).join("")
-    : "<p class='why'>None detected.</p>";
+    : `<p class='why'>${u.none}</p>`;
   document.getElementById("actions").innerHTML = d.actions.map(a => `<li>${a}</li>`).join("");
   document.getElementById("disc").textContent = d.disclaimer;
 }
+
+function showChooser() {
+  document.getElementById("chooser").classList.remove("hidden");
+}
+
+// Every time the website is opened, ask for the language first.
+applyLang();
+showChooser();
 </script>
 </body>
 </html>
