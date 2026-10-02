@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Scam Awareness Tool</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --warn:#f59e0b; --ok:#22c55e; --bad:#ef4444; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 20px; }
+  textarea { width:100%; min-height:130px; padding:12px; border-radius:10px; border:1px solid #334155; background:var(--card); color:var(--text); font-size:1rem; resize:vertical; }
+  button { margin-top:12px; padding:10px 20px; border:0; border-radius:8px; background:#3b82f6; color:#fff; font-size:1rem; cursor:pointer; }
+  button:hover { background:#2563eb; }
+  .card { background:var(--card); border-radius:12px; padding:16px; margin-top:20px; }
+  .level { font-size:1.15rem; font-weight:600; }
+  .bar { height:10px; background:#334155; border-radius:6px; overflow:hidden; margin:10px 0; }
+  .bar > div { height:100%; transition: width .4s; }
+  .row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #334155; gap:12px; }
+  .row:last-child { border-bottom:0; }
+  .why { color:var(--muted); font-size:.85rem; }
+  .yes { color:var(--warn); font-weight:600; white-space:nowrap; }
+  ul { padding-left:20px; margin:8px 0 0; }
+  .disc { color:var(--muted); font-size:.8rem; margin-top:16px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🤖 AI Scam Awareness Tool</h1>
+  <p class="sub">Paste a suspicious message to see which common scam indicators it contains.</p>
+
+  <textarea id="msg" placeholder="Paste the message here..."></textarea>
+  <button onclick="run()">Analyze message</button>
+
+  <div id="out" class="hidden">
+    <div class="card">
+      <div class="level" id="level"></div>
+      <div class="bar"><div id="fill"></div></div>
+      <div class="why" id="scores"></div>
+      <p id="explain"></p>
+    </div>
+    <div class="card">
+      <b>⚠️ Indicators found</b>
+      <div id="found"></div>
+    </div>
+    <div class="card">
+      <b>✅ Recommended action</b>
+      <ul id="actions"></ul>
+    </div>
+    <p class="disc" id="disc"></p>
+  </div>
+</div>
+
+<script>
+async function run() {
+  const message = document.getElementById("msg").value;
+  const res = await fetch("/api/analyze", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({message})
+  });
+  const d = await res.json();
+  document.getElementById("out").classList.remove("hidden");
+  document.getElementById("level").textContent = d.level;
+  const fill = document.getElementById("fill");
+  fill.style.width = d.score + "%";
+  fill.style.background = d.score >= 60 ? "var(--bad)" : d.score >= 35 ? "var(--warn)" : "var(--ok)";
+  document.getElementById("scores").textContent =
+    "Indicator score: " + d.score + "/100" + (d.ml_score !== null ? "  |  ML similarity to known scam examples: " + d.ml_score + "%" : "");
+  document.getElementById("explain").textContent = d.explanation;
+  document.getElementById("found").innerHTML = d.indicators_found.length
+    ? d.indicators_found.map(i => `<div class="row"><div>${i.label}<div class="why">${i.why}</div></div><span class="yes">✓</span></div>`).join("")
+    : "<p class='why'>None detected.</p>";
+  document.getElementById("actions").innerHTML = d.actions.map(a => `<li>${a}</li>`).join("");
+  document.getElementById("disc").textContent = d.disclaimer;
+}
+</script>
+</body>
+</html>
