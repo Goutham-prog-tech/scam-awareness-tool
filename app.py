@@ -15,7 +15,8 @@ def home():
 def api_analyze():
     data = request.get_json(silent=True) or {}
     message = str(data.get("message", ""))[:MAX_LENGTH]
-    return jsonify(analyze(message))
+    lang = data.get("lang", "en")
+    return jsonify(analyze(message, lang))
 
 
 if __name__ == "__main__":
